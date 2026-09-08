@@ -94,6 +94,18 @@ FastDNS includes a cache demo and a repeated-lookup benchmark to expose resolver
 
 ---
 
+## Measured Benchmark Run
+
+The local benchmark executes **1,000 cached `localhost` lookups** after clearing the cache and prints the total elapsed time:
+
+```text
+run-benchmark.bat -> fastdns.ResolverBenchmark
+```
+
+The result is machine-dependent; run the launcher again when comparing TTL, cache or native `DnsQueryEx` changes.
+
+---
+
 ## API Quick Reference
 
 | Method | Description |
