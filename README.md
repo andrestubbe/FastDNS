@@ -1,18 +1,32 @@
 # FastDNS 0.1.0 [ALPHA-2026-09] — Ultra-Fast DNS Resolver for Java
 
-[![Status](https://img.shields.io/badge/status-0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastDNS)
+[![Status](https://img.shields.io/badge/status-0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastDNS/releases/tag/0.1.0)
 [![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe/FastDNS)
 
 ---
 
-**Asynchronous hostname resolution for the FastJava ecosystem.** FastDNS combines a stable async API with a local TTL cache and leaves a clear boundary for native Windows `DnsQueryEx`, DoH and DoT providers.
+**⚡ Ultra-fast asynchronous name resolution for the FastJava ecosystem.**
+
+**FastDNS** combines a stable asynchronous API with a local TTL cache for crawlers, service clients, telemetry gateways and socket pools. It uses the portable JDK resolver today while reserving a native Windows `DnsQueryEx`, DoH and DoT backend for high-concurrency workloads.
+
+[**Run the DNS Cache Demo**](examples/Demo/src/main/java/fastdns/DnsCacheDemo.java) | [**Run the Resolver Benchmark**](examples/Benchmark/src/main/java/fastdns/ResolverBenchmark.java)
+
+---
 
 ## Quick Start
 
 ```java
-FastDNS.resolve("example.com").thenAccept(System.out::println);
+import fastdns.FastDNS;
+
+public class Example {
+	public static void main(String[] args) {
+		FastDNS.resolve("example.com")
+				.thenAccept(address -> System.out.println("Resolved: " + address));
+	}
+}
 ```
 
 ## Table of Contents
@@ -34,16 +48,26 @@ FastDNS.resolve("example.com").thenAccept(System.out::println);
 
 ## Why FastDNS?
 
-Synchronous hostname resolution blocks application threads and becomes a bottleneck when crawlers, telemetry clients or socket pools open many endpoints. FastDNS keeps resolution asynchronous and reuses successful answers until their TTL expires.
+Synchronous hostname resolution becomes a bottleneck when crawlers, telemetry clients or socket pools open many endpoints:
+
+- **Blocking lookups**: A resolver call can hold a worker while the operating system waits for a response.
+- **Repeated work**: Stable service names are resolved again even when a recent answer is still valid.
+- **Connection coupling**: Network code becomes harder to scale when resolution and socket setup share a blocking path.
+
+**FastDNS** addresses this with a small resolver facade:
+
+- **Asynchronous completion**: Resolution returns a `CompletableFuture` for natural fan-out.
+- **TTL-aware cache**: Successful answers are reused until the caller-selected expiry time.
+- **Native-ready providers**: `DnsQueryEx`, DoH and DoT can replace the fallback without changing callers.
 
 ---
 
 ## Features
 
-- `CompletableFuture`-based asynchronous resolution.
-- Thread-safe local cache with caller-selected TTL.
-- Portable JDK resolver fallback.
-- Native `DnsQueryEx`, DoH and DoT integration boundary.
+- **⚡ Asynchronous resolution**: Resolve many service names without blocking crawler or client workers.
+- **🗃️ TTL-aware cache**: Reuse successful answers with a caller-selected lifetime.
+- **🧵 Thread-safe facade**: Concurrent lookups share a predictable cache contract.
+- **🪟 Native-ready backend**: Designed for Windows `DnsQueryEx`, DoH and DoT integration.
 
 ---
 
@@ -58,12 +82,15 @@ Synchronous hostname resolution blocks application threads and becomes a bottlen
 
 ## Performance Benchmarks
 
-The included benchmark measures repeated cached `localhost` lookups; native resolver figures must be measured after `DnsQueryEx` integration.
+FastDNS includes a cache demo and a repeated-lookup benchmark to expose resolver overhead before native `DnsQueryEx` integration.
 
-| Operation | Current Java fallback | Native target |
-|---|---:|---:|
-| Cached lookup | Measured by `run-benchmark.bat` | Atomic native cache |
-| Cold lookup | JDK resolver | `DnsQueryEx` |
+| Metric / Resolution Type | Current Java Fallback | Native Target |
+|-------------------------|----------------------|---------------|
+| **Cached lookup** | Measured by benchmark | Atomic native cache |
+| **Cold lookup** | JDK resolver | `DnsQueryEx` |
+| **Secure lookup** | Provider-dependent | DoH / DoT |
+
+*The benchmark measures repeated local lookups. Native latency and cache figures are reported only after the platform resolver backend is integrated.*
 
 ---
 
@@ -71,6 +98,8 @@ The included benchmark measures repeated cached `localhost` lookups; native reso
 
 | Method | Description |
 |---|---|
+| Method | Description |
+|--------|-------------|
 | `resolve(hostname)` | Resolves a hostname asynchronously using the default TTL. |
 | `resolve(hostname, ttlMillis)` | Resolves and caches with a caller-selected TTL. |
 | `clearCache()` | Removes all cached answers. |
@@ -81,8 +110,8 @@ The included benchmark measures repeated cached `localhost` lookups; native reso
 
 | Case | Java Example | Launcher | Description |
 |---|---|---|---|
-| **Crawler Endpoint** | [Demo.java](examples/Demo/src/main/java/fastdns/Demo.java) | `run-demo.bat` | Resolves a real public web endpoint asynchronously. |
-| **Resolver Cache** | [Benchmark.java](examples/Benchmark/src/main/java/fastdns/benchmark/Benchmark.java) | `run-benchmark.bat` | Measures repeated cached lookups for a service client. |
+| **Crawler Endpoint Cache** | [DnsCacheDemo.java](examples/Demo/src/main/java/fastdns/DnsCacheDemo.java) | `run-demo.bat` | Compares the first lookup with a cached service endpoint lookup. |
+| **Resolver Cache Throughput** | [ResolverBenchmark.java](examples/Benchmark/src/main/java/fastdns/ResolverBenchmark.java) | `run-benchmark.bat` | Measures repeated cached lookups for a high-volume client. |
 
 ---
 
@@ -91,17 +120,31 @@ The included benchmark measures repeated cached `localhost` lookups; native reso
 ### Option 1: Maven (Recommended)
 
 ```xml
-<dependency>
-	<groupId>com.github.andrestubbe</groupId>
-	<artifactId>FastDNS</artifactId>
-	<version>0.1.0</version>
-</dependency>
+<repositories>
+	<repository>
+		<id>jitpack.io</id>
+		<url>https://jitpack.io</url>
+	</repository>
+</repositories>
+<dependencies>
+	<dependency>
+		<groupId>com.github.andrestubbe</groupId>
+		<artifactId>FastDNS</artifactId>
+		<version>0.1.0</version>
+	</dependency>
+</dependencies>
 ```
 
 ### Option 2: Gradle (via JitPack)
 
 ```groovy
-implementation 'com.github.andrestubbe:FastDNS:0.1.0'
+repositories {
+	maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+	implementation 'com.github.andrestubbe:FastDNS:0.1.0'
+}
 ```
 
 ### Option 3: Direct Download (No Build Tool)
@@ -112,11 +155,11 @@ Download the latest FastDNS JAR from the [GitHub releases](https://github.com/an
 
 ## Documentation
 
-- [COMPILE.md](docs/COMPILE.md): Build and launcher instructions.
-- [REFERENCE.md](docs/REFERENCE.md): Resolver and cache contract.
-- [PHILOSOPHY.md](docs/PHILOSOPHY.md): Async and cache principles.
-- [ROADMAP.md](docs/ROADMAP.md): Native resolver milestones.
-- [CHANGELOG.md](docs/CHANGELOG.md): Version history.
+* **[COMPILE.md](docs/COMPILE.md)**: Full compilation guide and launcher instructions.
+* **[REFERENCE.md](docs/REFERENCE.md)**: Resolver and cache contract.
+* **[PHILOSOPHY.md](docs/PHILOSOPHY.md)**: Async and cache principles.
+* **[ROADMAP.md](docs/ROADMAP.md)**: Native resolver milestones.
+* **[CHANGELOG.md](docs/CHANGELOG.md)**: Version history.
 
 ---
 
@@ -144,4 +187,4 @@ MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
-**Part of the FastJava Ecosystem** — Making the JVM faster. Small package. Maximum speed.
+**Part of the FastJava Ecosystem** — *Making the JVM faster. Small package. Maximum speed. Zero bloat. 🚀📋*
