@@ -1,7 +1,8 @@
 @echo off
 chcp 65001 >nul
-call mvn install -DskipTests -q
+call mvn clean install -DskipTests -q
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 cd examples\Demo
-call mvn compile exec:java -q
+call mvn compile exec:java -Dexec.mainClass=fastdns.DnsCacheDemo -q
 cd ..\..
 pause
