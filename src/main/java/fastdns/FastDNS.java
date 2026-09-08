@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class FastDNS {
     private static final long DEFAULT_TTL_MILLIS = 30_000L;
     private static final ConcurrentHashMap<String, CachedAddress> CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, CompletableFuture<InetAddress>> IN_FLIGHT = new ConcurrentHashMap<>();
 
     private FastDNS() {
     }
@@ -27,19 +28,23 @@ public final class FastDNS {
         if (cached != null && cached.expiresAtMillis > now) {
             return CompletableFuture.completedFuture(cached.address);
         }
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                InetAddress address = InetAddress.getByName(hostname);
-                CACHE.put(hostname, new CachedAddress(address, System.currentTimeMillis() + ttlMillis));
-                return address;
-            } catch (java.net.UnknownHostException exception) {
-                throw new ResolveException(hostname, exception);
-            }
-        });
+        CompletableFuture<InetAddress> pending = IN_FLIGHT.computeIfAbsent(hostname,
+                ignored -> CompletableFuture.supplyAsync(() -> resolveBlocking(hostname, ttlMillis)));
+        return pending.whenComplete((ignored, failure) -> IN_FLIGHT.remove(hostname, pending));
     }
 
     public static void clearCache() {
         CACHE.clear();
+    }
+
+    private static InetAddress resolveBlocking(String hostname, long ttlMillis) {
+        try {
+            InetAddress address = InetAddress.getByName(hostname);
+            CACHE.put(hostname, new CachedAddress(address, System.currentTimeMillis() + ttlMillis));
+            return address;
+        } catch (java.net.UnknownHostException exception) {
+            throw new ResolveException(hostname, exception);
+        }
     }
 
     public static final class ResolveException extends RuntimeException {
