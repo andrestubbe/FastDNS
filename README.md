@@ -60,6 +60,13 @@ Synchronous hostname resolution becomes a bottleneck when crawlers, telemetry cl
 - **TTL-aware cache**: Successful answers are reused until the caller-selected expiry time.
 - **Native-ready providers**: `DnsQueryEx`, DoH and DoT can replace the fallback without changing callers.
 
+| Feature | InetAddress.getByName | DnsJava / Netty DNS | FastDNS |
+|:---|:---|:---|:---|
+| **Execution Model** | Synchronous blocking OS call | Netty Channel / complex DAG | **Non-blocking CompletableFuture** |
+| **In-Flight Deduplication**| No (Thundering herd problem) | Manual cache layer | **Automatic concurrent deduplication** |
+| **TTL Cache Control** | JVM global security property | Configurable cache | **Fine-grained per-caller TTL cache** |
+| **Native Integration** | Standard POSIX/Win32 getaddrinfo | Pure Java socket implementation | **Native-ready `DnsQueryEx` / DoH / DoT** |
+
 ---
 
 ## Features
